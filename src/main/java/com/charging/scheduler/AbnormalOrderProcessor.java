@@ -1,10 +1,10 @@
-package org.example.scheduler;
+package com.charging.scheduler;
 
 
-import org.example.manager.TccTransactionManager;
-import org.example.service.impl.ChargingService;
-import org.example.service.impl.PaymentService;
-import org.example.util.DBUtil;
+import com.charging.manager.TccTransactionManager;
+import com.charging.service.impl.ChargingService;
+import com.charging.service.impl.PaymentService;
+import com.charging.util.DBUtil;
 
 import java.sql.Connection;
 import java.sql.SQLException;

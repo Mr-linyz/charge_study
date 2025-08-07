@@ -1,4 +1,4 @@
-package org.example.service;
+package com.charging.service;
 
 import java.sql.Connection;
 import java.sql.SQLException;

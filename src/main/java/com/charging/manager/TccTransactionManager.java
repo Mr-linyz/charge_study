@@ -1,6 +1,6 @@
-package org.example.manager;
+package com.charging.manager;
 
-import org.example.service.TccAction;
+import com.charging.service.TccAction;
 
 import java.sql.*;
 

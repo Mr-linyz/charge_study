@@ -1,4 +1,4 @@
-package org.example.model;
+package com.charging.model;
 
 import java.sql.Timestamp;
 

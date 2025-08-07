@@ -1,0 +1,56 @@
+spring:
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/charging_system?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  # RabbitMQ配置
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    # 生产者确认配置
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    # 消费者配置
+    listener:
+      simple:
+        acknowledge-mode: manual  # 手动确认消息
+        concurrency: 3            # 并发消费者数量
+        max-concurrency: 10       # 最大并发消费者数量
+        prefetch: 10              # 每次从队列获取的消息数量
+        retry:
+          enabled: true           # 开启重试机制
+          max-attempts: 3         # 最大重试次数
+          initial-interval: 2000  # 初始重试间隔(毫秒)
+
+# 应用配置
+app:
+  # 积分消息队列配置
+  rabbit:
+    points:
+      exchange: points.exchange
+      routing-key: points.add
+      queue:
+        name: points.queue
+        dead-letter-exchange: points.dlq.exchange
+        dead-letter-routing-key: points.dlq
+        dead-letter-queue: points.dlq.queue
+        ttl: 86400000  # 消息过期时间(24小时)
+
+  # 定时任务配置
+  scheduler:
+    message:
+      check-interval-seconds: 30  # 消息扫描间隔(秒)
+      max-retry-count: 5          # 最大重试次数
