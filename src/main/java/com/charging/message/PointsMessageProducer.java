@@ -2,63 +2,44 @@ package com.charging.message;
 
 import com.alibaba.fastjson.JSON;
 import com.charging.model.PointsMessage;
+import com.charging.util.RabbitMQUtil;
+import com.rabbitmq.client.Channel;
+import com.charging.config.RabbitMQConfig;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.connection.CorrelationData;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
 
 /**
- * 积分消息生产者，负责将积分消息发送到RabbitMQ队列
+ * 积分消息生产者
  */
 @Slf4j
-@Component
 public class PointsMessageProducer {
 
-    private final RabbitTemplate rabbitTemplate;
-    private final String pointsExchange;
-    private final String pointsRoutingKey;
-
-    @Autowired
-    public PointsMessageProducer(RabbitTemplate rabbitTemplate,
-        @Value("${app.rabbit.points.exchange}") String pointsExchange,
-        @Value("${app.rabbit.points.routing-key}") String pointsRoutingKey) {
-        this.rabbitTemplate = rabbitTemplate;
-        this.pointsExchange = pointsExchange;
-        this.pointsRoutingKey = pointsRoutingKey;
-
-        // 设置消息确认回调
-        this.rabbitTemplate.setConfirmCallback((correlationData, ack, cause) -> {
-            if (ack) {
-                log.info("消息发送成功, messageId: {}", correlationData.getId());
-            } else {
-                log.error("消息发送失败, messageId: {}, 原因: {}", correlationData.getId(), cause);
-                // 可以在这里实现消息发送失败的重试逻辑
-            }
-        });
-    }
-
     /**
-     * 发送积分消息到队列
+     * 发送积分消息
      */
-    public void sendPointsMessage(String orderId, String userId, double points) {
-        try {
-            // 创建积分消息
-            PointsMessage message = PointsMessage.build(orderId, userId, points);
+    public void sendPointsMessage(PointsMessage message) throws IOException, TimeoutException {
+        if (message == null) {
+            log.error("发送的消息不能为空");
+            throw new IllegalArgumentException("消息不能为空");
+        }
 
-            // 创建消息关联数据，用于确认回调
-            CorrelationData correlationData = new CorrelationData(message.getMessageId());
+        try (Channel channel = RabbitMQUtil.getChannel()) {
+            // 消息内容
+            String messageJson = JSON.toJSONString(message);
 
             // 发送消息
-            rabbitTemplate.convertAndSend(pointsExchange, pointsRoutingKey, JSON.toJSONString(message),
-                correlationData);
+            channel.basicPublish(
+                RabbitMQConfig.getPointsExchange(),
+                RabbitMQConfig.getPointsRoutingKey(),
+                null,
+                messageJson.getBytes("UTF-8")
+            );
 
-            log.info("已发送积分消息, messageId: {}, orderId: {}, userId: {}, points: {}", message.getMessageId(),
-                orderId, userId, points);
-        } catch (Exception e) {
-            log.error("发送积分消息异常, orderId: {}, userId: {}", orderId, userId, e);
-            throw new RuntimeException("发送积分消息失败", e);
+            log.info("积分消息发送成功，消息ID: {}, 订单ID: {}, 用户ID: {}, 积分: {}",
+                message.getMessageId(), message.getOrderId(),
+                message.getUserId(), message.getPoints());
         }
     }
 }

@@ -3,12 +3,13 @@ package com.charging.model;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 import java.io.Serializable;
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
- * 积分消息实体类，用于在消息队列中传输
+ * 积分消息实体类
  */
 @Data
 @NoArgsConstructor
@@ -26,21 +27,21 @@ public class PointsMessage implements Serializable {
     private String userId;
 
     // 积分数量
-    private Double points;
+    private BigDecimal points;
 
-    // 消息创建时间
-    private LocalDateTime createTime;
+    // 创建时间戳
+    private long createTime;
 
     /**
-     * 构建积分消息的静态方法
+     * 创建积分消息
      */
-    public static PointsMessage build(String orderId, String userId, Double points) {
+    public static PointsMessage create(String orderId, String userId, BigDecimal points) {
         PointsMessage message = new PointsMessage();
         message.setMessageId(UUID.randomUUID().toString());
         message.setOrderId(orderId);
         message.setUserId(userId);
         message.setPoints(points);
-        message.setCreateTime(LocalDateTime.now());
+        message.setCreateTime(System.currentTimeMillis());
         return message;
     }
 }

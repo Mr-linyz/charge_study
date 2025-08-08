@@ -1,105 +1,74 @@
 package com.charging.config;
 
-import org.springframework.amqp.core.*;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
 
 /**
- * RabbitMQ队列配置类
+ * RabbitMQ配置类
  */
-@Configuration
 public class RabbitMQConfig {
+    private static final Properties properties = new Properties();
 
-    // 正常队列配置
-    @Value("${app.rabbit.points.exchange}")
-    private String pointsExchange;
-
-    @Value("${app.rabbit.points.routing-key}")
-    private String pointsRoutingKey;
-
-    @Value("${app.rabbit.points.queue.name}")
-    private String pointsQueueName;
-
-    // 死信队列配置
-    @Value("${app.rabbit.points.queue.dead-letter-exchange}")
-    private String deadLetterExchange;
-
-    @Value("${app.rabbit.points.queue.dead-letter-routing-key}")
-    private String deadLetterRoutingKey;
-
-    @Value("${app.rabbit.points.queue.dead-letter-queue}")
-    private String deadLetterQueueName;
-
-    @Value("${app.rabbit.points.queue.ttl}")
-    private long messageTTL;
-
-    /**
-     * 声明积分消息交换机
-     */
-    @Bean
-    public DirectExchange pointsExchange() {
-        return ExchangeBuilder.directExchange(pointsExchange)
-            .durable(true)
-            .build();
+    static {
+        try (InputStream input = RabbitMQConfig.class.getClassLoader().getResourceAsStream("rabbitmq.properties")) {
+            if (input == null) {
+                throw new RuntimeException("无法找到rabbitmq.properties配置文件");
+            }
+            properties.load(input);
+        } catch (IOException ex) {
+            throw new RuntimeException("加载RabbitMQ配置失败", ex);
+        }
     }
 
-    /**
-     * 声明死信交换机
-     */
-    @Bean
-    public DirectExchange deadLetterExchange() {
-        return ExchangeBuilder.directExchange(deadLetterExchange)
-            .durable(true)
-            .build();
+    public static String getHost() {
+        return properties.getProperty("rabbitmq.host", "localhost");
     }
 
-    /**
-     * 声明积分消息队列
-     */
-    @Bean
-    public Queue pointsQueue() {
-        // 设置队列参数，指定死信交换机和路由键
-        Map<String, Object> arguments = new HashMap<>(3);
-        arguments.put("x-dead-letter-exchange", deadLetterExchange);
-        arguments.put("x-dead-letter-routing-key", deadLetterRoutingKey);
-        arguments.put("x-message-ttl", messageTTL); // 消息过期时间
-
-        return QueueBuilder.durable(pointsQueueName)
-            .withArguments(arguments)
-            .build();
+    public static int getPort() {
+        return Integer.parseInt(properties.getProperty("rabbitmq.port", "5672"));
     }
 
-    /**
-     * 声明死信队列
-     */
-    @Bean
-    public Queue deadLetterQueue() {
-        return QueueBuilder.durable(deadLetterQueueName)
-            .build();
+    public static String getUsername() {
+        return properties.getProperty("rabbitmq.username", "guest");
     }
 
-    /**
-     * 绑定积分队列到交换机
-     */
-    @Bean
-    public Binding pointsBinding() {
-        return BindingBuilder.bind(pointsQueue())
-            .to(pointsExchange())
-            .with(pointsRoutingKey);
+    public static String getPassword() {
+        return properties.getProperty("rabbitmq.password", "guest");
     }
 
-    /**
-     * 绑定死信队列到死信交换机
-     */
-    @Bean
-    public Binding deadLetterBinding() {
-        return BindingBuilder.bind(deadLetterQueue())
-            .to(deadLetterExchange())
-            .with(deadLetterRoutingKey);
+    public static String getVirtualHost() {
+        return properties.getProperty("rabbitmq.virtual-host", "/");
+    }
+
+    // 积分消息交换机
+    public static String getPointsExchange() {
+        return properties.getProperty("rabbitmq.points.exchange", "charging.points.exchange");
+    }
+
+    // 积分消息路由键
+    public static String getPointsRoutingKey() {
+        return properties.getProperty("rabbitmq.points.routing-key", "charging.points.routing.key");
+    }
+
+    // 积分消息队列
+    public static String getPointsQueue() {
+        return properties.getProperty("rabbitmq.points.queue", "charging.points.queue");
+    }
+
+    // 死信交换机
+    public static String getDeadLetterExchange() {
+        return properties.getProperty("rabbitmq.dlq.exchange", "charging.points.dlq.exchange");
+    }
+
+    // 死信路由键
+    public static String getDeadLetterRoutingKey() {
+        return properties.getProperty("rabbitmq.dlq.routing-key", "charging.points.dlq.routing.key");
+    }
+
+    // 死信队列
+    public static String getDeadLetterQueue() {
+        return properties.getProperty("rabbitmq.dlq.queue", "charging.points.dlq.queue");
     }
 }
     

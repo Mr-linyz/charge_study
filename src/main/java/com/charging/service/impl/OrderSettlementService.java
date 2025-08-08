@@ -1,77 +1,73 @@
-package com.charging.service;
+package com.charging.service.impl;
 
 import com.charging.util.DBUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.UUID;
 
 /**
- * 订单结算服务，负责订单结算并创建积分消息
+ * 订单结算服务类
  */
 @Slf4j
-@Service
 public class OrderSettlementService {
+
+    // 积分比例：订单金额的1%转为积分
+    private static final BigDecimal POINTS_RATIO = new BigDecimal("0.01");
 
     /**
      * 结算充电订单并创建积分消息
-     * 订单金额的1%将转换为用户积分
+     *
+     * @param orderId
+     *     订单ID
+     * @param userId
+     *     用户ID
+     * @param orderAmount
+     *     订单金额
+     * @return 是否结算成功
      */
-    public boolean settleOrder(String orderId, String userId, double orderAmount) {
-        log.info("开始结算订单: {}, 用户: {}, 金额: {}", orderId, userId, orderAmount);
-
-        // 计算积分（订单金额的1%）
-        double points = Math.round(orderAmount * 0.01 * 100) / 100.0;
-
-        // 本地消息表插入SQL
-        String insertMessageSql = "INSERT INTO local_message " +
-            "(id, order_id, user_id, points, status, create_time) " +
-            "VALUES (?, ?, ?, ?, 'PENDING', NOW())";
-
-        // 模拟更新订单状态SQL
-        String updateOrderSql = "UPDATE charging_order " +
-            "SET status = 'SETTLED', settlement_time = NOW() " +
-            "WHERE order_id = ?";
-
-        try (Connection conn = DBUtil.getConnection()) {
+    public boolean settleOrder(String orderId, String userId, BigDecimal orderAmount) {
+        Connection conn = null;
+        try {
+            conn = DBUtil.getConnection();
             conn.setAutoCommit(false);
 
-            try (PreparedStatement orderStmt = conn.prepareStatement(updateOrderSql);
-                PreparedStatement messageStmt = conn.prepareStatement(insertMessageSql)) {
+            // 1. 模拟更新订单状态为"已结算"
+            // 实际项目中这里会更新订单表的状态
+            log.info("订单 {} 开始结算，用户: {}, 金额: {}", orderId, userId, orderAmount);
 
-                // 1. 更新订单状态为已结算
-                orderStmt.setString(1, orderId);
-                int orderUpdateCount = orderStmt.executeUpdate();
-                if (orderUpdateCount == 0) {
-                    log.error("订单 {} 不存在或已结算", orderId);
-                    conn.rollback();
-                    return false;
-                }
+            // 2. 计算应得积分 (订单金额 * 1%)
+            BigDecimal points = orderAmount.multiply(POINTS_RATIO).setScale(2, BigDecimal.ROUND_HALF_UP);
 
-                // 2. 插入积分消息
-                String messageId = UUID.randomUUID().toString();
-                messageStmt.setString(1, messageId);
-                messageStmt.setString(2, orderId);
-                messageStmt.setString(3, userId);
-                messageStmt.setDouble(4, points);
-                messageStmt.executeUpdate();
+            // 3. 创建本地消息表记录
+            String messageId = UUID.randomUUID().toString();
+            int rows = DBUtil.executeUpdate(conn,
+                "INSERT INTO local_message (id, order_id, user_id, points, status) " + "VALUES (?, ?, ?, ?, 'PENDING')",
+                messageId, orderId, userId, points);
 
-                // 提交事务
-                conn.commit();
-                log.info("订单 {} 结算成功，将为用户 {} 增加 {} 积分", orderId, userId, points);
-                return true;
-
-            } catch (SQLException e) {
-                conn.rollback();
-                log.error("订单 {} 结算失败: {}", orderId, e.getMessage(), e);
-                return false;
+            if (rows <= 0) {
+                throw new SQLException("创建积分消息失败");
             }
+
+            // 4. 提交事务
+            conn.commit();
+            log.info("订单 {} 结算成功，将为用户 {} 增加 {} 积分，消息ID: {}", orderId, userId, points, messageId);
+            return true;
+
         } catch (SQLException e) {
-            log.error("获取数据库连接失败: {}", e.getMessage(), e);
+            log.error("订单 {} 结算失败", orderId, e);
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    log.error("回滚订单结算事务失败", ex);
+                }
+            }
             return false;
+        } finally {
+            DBUtil.close(conn, null, null);
         }
     }
 }
